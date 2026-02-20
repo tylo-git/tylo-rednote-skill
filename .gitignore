@@ -1,0 +1,15 @@
+# Sensitive data
+data/cookies.json
+.env
+
+# Runtime outputs (keep demo outputs in docs/)
+.claude/skills/tylo-rednote-skill/output/
+images/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc

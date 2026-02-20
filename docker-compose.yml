@@ -1,0 +1,18 @@
+services:
+  xiaohongshu-mcp:
+    # Docker Hub image (default)
+    image: xpzouying/xiaohongshu-mcp
+    # Alibaba Cloud mirror (faster for China users)
+    # image: crpi-hocnvtkomt7w9v8t.cn-beijing.personal.cr.aliyuncs.com/xpzouying/xiaohongshu-mcp
+    container_name: xiaohongshu-mcp
+    restart: unless-stopped
+    init: true
+    tty: true
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
+    environment:
+      - ROD_BROWSER_BIN=/usr/bin/google-chrome
+      - COOKIES_PATH=/app/data/cookies.json
+    ports:
+      - "18060:18060"
