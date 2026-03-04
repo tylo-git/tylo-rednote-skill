@@ -162,18 +162,62 @@ tylo-rednote-skill/
 ├── .claude/skills/tylo-rednote-skill/   ← Claude Skill 定义
 │   ├── SKILL.md                         ← Skill 主文件（工作流定义）
 │   ├── scripts/
-│   │   └── gemini_image_gen.py          ← Gemini 图片生成脚本
+│   │   ├── gemini_image_gen.py          ← Gemini 图片生成脚本
+│   │   └── publish_to_xiaohongshu.py   ← 小红书发布脚本（MCP HTTP）
 │   ├── assets/                          ← 用户放入的文本素材
 │   ├── references/                      ← 参考图片（生图风格参考）
 │   └── output/                          ← 运行输出（自动生成）
 ├── docker-compose.yml                   ← xiaohongshu-mcp 容器配置
 ├── images/                              ← Docker 映射的图片目录
 ├── data/                                ← MCP 登录数据（cookies）
-├── docs/                                ← Demo 效果展示
+├── docs/                                ← Demo 效果展示 & 文档
 │   ├── demo-rental/                     ← 租房文案 Demo
-│   └── demo-valorant/                   ← 游戏收号 Demo
+│   ├── demo-valorant/                   ← 游戏收号 Demo
+│   └── clash-network-troubleshooting.md ← 网络踩坑指南
 ├── .gitignore
 └── README.md
+```
+
+---
+
+## 🌐 网络配置（使用代理的用户必读）
+
+### Clash 代理与小红书发布冲突
+
+`creator.xiaohongshu.com`（发布平台）**仅限大陆 IP 访问**，而 Claude Code 需要代理才能连接 Anthropic API。两者直接冲突。
+
+**错误做法**（不管用）：
+- ❌ Clash 切 Global 模式 → 规则全部失效，无法分流
+- ❌ Clash 切 Direct 模式 → Claude Code 断连
+
+**正确方案：Clash Rule 模式 + DIRECT 规则**
+
+**第一步**：Clash → 代理模式 → 选 **「规则 (Rule)」**
+
+**第二步**：规则列表**最顶部**加入：
+```yaml
+rules:
+  - DOMAIN-SUFFIX,xiaohongshu.com,DIRECT
+  - DOMAIN-SUFFIX,xhslink.com,DIRECT
+  # ... 其他原有规则
+```
+
+**第三步**：点击 Reload Config 重载配置
+
+效果：小红书走大陆直连，Claude Code 继续走代理，两者同时正常。
+
+> 📄 详细踩坑过程见 [docs/clash-network-troubleshooting.md](docs/clash-network-troubleshooting.md)
+
+### Windows Git Bash 路径转换问题
+
+在 Windows Git Bash 下调用发布脚本时，必须加 `MSYS_NO_PATHCONV=1`，否则 `/app/images/` 会被自动转换为 Windows 路径：
+
+```bash
+MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 python \
+  .claude/skills/tylo-rednote-skill/scripts/publish_to_xiaohongshu.py \
+  --title "标题" \
+  --content "正文" \
+  --images /app/images/figure-1.png /app/images/figure-2.png
 ```
 
 ---
