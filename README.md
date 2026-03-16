@@ -208,17 +208,28 @@ rules:
 
 > 📄 详细踩坑过程见 [docs/clash-network-troubleshooting.md](docs/clash-network-troubleshooting.md)
 
-### Windows Git Bash 路径转换问题
+### Windows Git Bash 路径转换问题（已自动修复）
 
-在 Windows Git Bash 下调用发布脚本时，必须加 `MSYS_NO_PATHCONV=1`，否则 `/app/images/` 会被自动转换为 Windows 路径：
+在 Windows Git Bash 下，`/app/images/xxx.png` 会被自动转换为 `C:/Program Files/Git/app/images/xxx.png`。
+
+**发布脚本已内置自动修复**：`publish_to_xiaohongshu.py` 会自动检测并修正以下路径问题：
+
+| 问题类型 | 传入路径示例 | 自动修正为 |
+|---------|-------------|-----------|
+| Git Bash 路径转换 | `C:/Program Files/Git/app/images/fig.png` | `/app/images/fig.png` |
+| Windows 绝对路径 | `E:\LLMproject\...\images\fig.png` | `/app/images/fig.png` |
+| Windows 控制台编码 | cp1252 无法输出中文 → 崩溃 | 自动切换 UTF-8 |
+
+现在可以直接运行，无需额外设置环境变量：
 
 ```bash
-MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8 python \
-  .claude/skills/tylo-rednote-skill/scripts/publish_to_xiaohongshu.py \
+python .claude/skills/tylo-rednote-skill/scripts/publish_to_xiaohongshu.py \
   --title "标题" \
   --content "正文" \
   --images /app/images/figure-1.png /app/images/figure-2.png
 ```
+
+> 如果仍然遇到路径问题，也可以手动设置 `MSYS_NO_PATHCONV=1 PYTHONIOENCODING=utf-8` 作为兜底方案。
 
 ---
 

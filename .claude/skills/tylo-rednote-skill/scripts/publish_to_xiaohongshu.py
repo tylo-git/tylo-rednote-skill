@@ -5,18 +5,35 @@
 """
 
 import argparse
+import io
 import json
 import os
+import re
 import sys
 import time
 import requests
 
+# 修复 Windows 控制台中文编码问题（cp1252 无法输出中文）
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if sys.stderr.encoding and sys.stderr.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 
 MCP_URL = os.environ.get("XHS_MCP_URL", "http://localhost:18060/mcp")
 MAX_RETRIES = 3
-PUBLISH_TIMEOUT = 600  # 发布超时 10 分钟
+PUBLISH_TIMEOUT = 1200  # 发布超时 20 分钟
 LOGIN_CHECK_TIMEOUT = 30
 INIT_TIMEOUT = 15
+
+# Docker 容器内图片目录前缀
+DOCKER_IMAGE_PREFIX = "/app/images/"
+
+# Git Bash 路径转换的典型特征（/app/ 被转成 C:/Program Files/Git/app/）
+GIT_BASH_MANGLED_PATTERN = re.compile(r"^[A-Za-z]:[/\\].*[/\\]Git[/\\]app[/\\]images[/\\]", re.IGNORECASE)
+
+# Windows 绝对路径特征
+WINDOWS_PATH_PATTERN = re.compile(r"^[A-Za-z]:[/\\]")
 
 
 def log(msg):
@@ -25,6 +42,35 @@ def log(msg):
 
 def log_error(msg):
     print(f"[xiaohongshu] ERROR: {msg}", file=sys.stderr, flush=True)
+
+
+def fix_image_path(path):
+    """
+    修复图片路径，确保是 Docker 容器内路径（/app/images/xxx.png）。
+
+    处理以下情况：
+    1. Git Bash 路径转换：/app/images/a.png → C:/Program Files/Git/app/images/a.png
+    2. Windows 本地绝对路径：E:/LLMproject/.../images/a.png
+    3. 已经是正确的 Docker 路径：/app/images/a.png → 不变
+    """
+    original = path
+
+    # 情况 1：Git Bash 自动路径转换（/app/ → C:/Program Files/Git/app/）
+    if GIT_BASH_MANGLED_PATTERN.match(path):
+        filename = os.path.basename(path)
+        fixed = DOCKER_IMAGE_PREFIX + filename
+        log(f"  路径修复 (Git Bash 转换): {original} -> {fixed}")
+        return fixed
+
+    # 情况 2：Windows 绝对路径
+    if WINDOWS_PATH_PATTERN.match(path):
+        filename = os.path.basename(path)
+        fixed = DOCKER_IMAGE_PREFIX + filename
+        log(f"  路径修复 (Windows 路径): {original} -> {fixed}")
+        return fixed
+
+    # 情况 3：已经是 Docker 容器内路径，无需修复
+    return path
 
 
 def check_mcp_server():
@@ -133,10 +179,19 @@ def check_login(session, headers):
 
 def publish(session, headers, title, content, images, tags=None):
     """发布笔记到小红书"""
+    # 修复所有图片路径，确保是 Docker 容器内路径
+    fixed_images = [fix_image_path(img) for img in images]
+
+    # 校验：所有路径必须以 /app/images/ 开头
+    for img in fixed_images:
+        if not img.startswith(DOCKER_IMAGE_PREFIX):
+            log_error(f"图片路径无效（必须是 Docker 容器内路径 /app/images/xxx.png）: {img}")
+            raise ValueError(f"无效的图片路径: {img}")
+
     arguments = {
         "title": title,
         "content": content,
-        "images": images,
+        "images": fixed_images,
     }
     if tags:
         arguments["tags"] = tags
@@ -144,8 +199,8 @@ def publish(session, headers, title, content, images, tags=None):
     log(f"正在发布笔记...")
     log(f"  标题: {title}")
     log(f"  正文长度: {len(content)} 字")
-    log(f"  图片数量: {len(images)}")
-    log(f"  图片路径: {images}")
+    log(f"  图片数量: {len(fixed_images)}")
+    log(f"  图片路径: {fixed_images}")
 
     text, result = call_tool(
         session, headers, "publish_content", arguments, timeout=PUBLISH_TIMEOUT, request_id=5
